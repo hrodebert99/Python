@@ -9,24 +9,16 @@ import time
 log_file = f'{datetime.datetime.now().strftime("%Y%m%d%H%M%S%f")}.log'
 
 def log(value):
-    if not os.path.exists(f'.\\{log_file}'):
-        open(log_file, 'w', encoding = 'utf-8')
-    
     with open(log_file, 'a', encoding = 'utf-8') as file:
         file.write(f'{value} \n')
     
     print(value)
 
-models = []
-
-for extension in ('*.ckpt', '*.pt', '*.safetensors'):
-    for model in glob.glob(extension):
-        models.append(model)
-
-count = len(models)
-
-model_type_paths = {
+model_list = [model for extension in ('*.ckpt', '*.pt', '*.safetensors') for model in glob.glob(extension)]
+model_length = len(model_list)
+model_type_path_dictionary = {
     'Checkpoint': 'checkpoints',
+    'DoRA': 'loras',
     'LoCon': 'loras',
     'LORA': 'loras',
     'TextualInversion': 'embeddings',
@@ -34,57 +26,52 @@ model_type_paths = {
 }
 
 log( 'Civitai Model Organizer')
-log(f'    {count} model(s) found.')
-log( '    Starting the model organization process in 3 seconds.')
-log( '    To cancel the process, press CTRL+C.')
+log(f'    {model_length} model(s) found.')
+log( '    Starting the process in 3 seconds.')
+log( '    To cancel it, press CTRL+C.')
 
 time.sleep(3 - 1)
 
-for index, model_file in enumerate(models):
+for index, model_file in enumerate(model_list):
     time.sleep(1)
 
     log( '')
-    log(f'{index + 1}/{count} {model_file}')
+    log(f'{index + 1}/{model_length} {model_file}')
 
-    hash = hashlib.sha256()
+    hasher = hashlib.sha256()
 
     with open(model_file, 'rb') as file:
         for chunk in iter(lambda: file.read(4096), b''):
-            hash.update(chunk)
+            hasher.update(chunk)
 
-    hash = hash.hexdigest()
+    model_hash = hasher.hexdigest()
     
-    log(f'    SHA256: {hash}')
+    log(f'    SHA256: {model_hash}')
 
-    response = requests.get(f'https://civitai.com/api/v1/model-versions/by-hash/{hash}')
-
-    # print(response)
+    response = requests.get(f'https://civitai.com/api/v1/model-versions/by-hash/{model_hash}')
 
     if response.status_code == 404:
         log('    [404] Not found in Civitai.')
 
-        folder = 'others'
+        if not os.path.exists('others'):
+            os.makedirs('others')
 
-        if not os.path.exists(folder):
-            os.makedirs(folder)
-
-            log(f'    [] Created {folder} folder.')
-
-        model_path = f'{folder}\\{model_file}'
-
-        if os.path.exists(model_path):
-            log(f'    [] Found a duplicate in {folder}.')
-            log( '    Skipped.')
+            log(f'    [] Created others folder.')
         
         try:
-            os.rename(model_file, model_path)
+            os.rename(model_file, f'others\\{model_file}')
+        except FileExistsError:
+            log(f'    [] Found a duplicate in others.')
+            log( '    Skipped.')
+
+            continue
         except KeyboardInterrupt:
             log('    [] Process interrupted.')
             log('    Stopped.')
 
             break
 
-        log(f'    [] Moved to {model_path}.')
+        log(f'    [] Moved to others\\{model_file}.')
 
         continue
 
@@ -98,9 +85,6 @@ for index, model_file in enumerate(models):
     }
 
     response = requests.get(f'https://civitai.com/api/v1/models/{model["id"]}')
-
-    # print(response)
-    
     response = json.loads(response.text)
 
     if 'creator' in response:
@@ -110,27 +94,26 @@ for index, model_file in enumerate(models):
     
     log(f'    {model["id"]}@{model["version"]} | {model["type"]} | {model["base_model"]} | {model["creator"]}')
 
-    if not model['type'] in model_type_paths.keys():
-        log(f'    [] Not a type of {", ".join(model_type_paths.keys())}.')
+    if not model['type'] in model_type_path_dictionary.keys():
+        log(f'    [] Not a type of {", ".join(model_type_path_dictionary.keys())}.')
         log( '    Skipped.')
 
         continue
 
-    model['path'] = f'{model_type_paths[model["type"]]}\\{model["base_model"]}\\{model["creator"]}\\{model_file}'
+    model['path'] = f'{model_type_path_dictionary[model["type"]]}\\{model["base_model"]}\\{model["creator"]}\\{model_file}'
 
-    folder = os.path.dirname(model['path'])
+    if not os.path.exists(os.path.dirname(model["path"])):
+        os.makedirs(os.path.dirname(model["path"]))
 
-    if not os.path.exists(folder):
-        os.makedirs(folder)
-
-        log(f'    [] Created {folder} folder.')
-    
-    if os.path.exists(model['path']):
-        log(f'    [] Found a duplicate in {folder}.')
-        log( '    Skipped.')
+        log(f'    [] Created {os.path.dirname(model["path"])} folder.')
     
     try:
-        os.rename(model_file, model['path'])
+        os.rename(model_file, model["path"])
+    except FileExistsError:
+        log(f'    [] Found a duplicate in {model["path"]}.')
+        log( '    Skipped.')
+
+        continue
     except KeyboardInterrupt:
         log('    [] Process interrupted.')
         log('    Stopped.')
