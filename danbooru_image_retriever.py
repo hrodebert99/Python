@@ -1,71 +1,77 @@
-import datetime
 import json
 import os
 import requests
-import time
 
-def get_images(page, tags):
-    response = requests.get(f'https://danbooru.donmai.us/posts.json?page={page}&tags={tags}')
-    return json.loads(response.text)
+class Danbooru:
+    def get_posts(tags, page = 1):
+        url = f'https://danbooru.donmai.us/posts.json?tags={tags}&page={page}'
+        response = requests.get(url).text
+        posts_json = json.loads(response)
+        posts = []
+        for post in posts_json:
+            if not post['file_ext'] in ['jpg', 'png']:
+                continue
 
-def download_image(url, name = datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')):
-    response = requests.get(url)
-    image = response.content
+            if not 'file_url' in post:
+                continue
+
+            post = DanbooruPost(post)
+            posts.append(post)
+        return posts
     
-    with open(name, 'wb') as file:
-        file.write(image)
+    def format_tag_string(tag_string):
+        tag_string = tag_string.replace(' ', ', ')
+        tag_string = tag_string.replace('_', ' ')
+        tag_string = tag_string.replace('(', '\\(')
+        tag_string = tag_string.replace(')', '\\)')
+        return tag_string
 
-page = 1
-tags = 'pallas_(arknights)'
+class DanbooruPost:
+    def __init__(self, post):
+        self.id = post['id']
+        self.md5 = post['md5'] if 'md5' in post else None
+        self.file_ext = post['file_ext']
+        self.tag_string_general = Danbooru.format_tag_string(post['tag_string_general'])
+        self.tag_string_character = Danbooru.format_tag_string(post['tag_string_character'])
+        self.tag_string_copyright = Danbooru.format_tag_string(post['tag_string_copyright'])
+        self.file_url = post['file_url']
+        
+    def download_original(self, save_folder):
+        print(f'Downloading {post.id}')
 
-print('Process started.')
+        url = post.file_url
+        response = requests.get(url)
+        image = response.content
+        
+        if not os.path.exists(save_folder):
+            os.mkdir(save_folder)
+        
+        filename = f'{save_folder}\\{self.md5 if not self.md5 == None else self.id}.{self.file_ext}'
+        
+        with open(filename, 'wb') as file:
+            file.write(image)
 
-os.mkdir(tags)
+    def download_tag_string(self, save_folder):
+        with open(f'{save_folder}\\{self.md5}.txt', 'w') as file:
+            file.write(f'{self.tag_string_character}, {self.tag_string_copyright}, {self.tag_string_general}')
 
-images = get_images(page, tags)
+if __name__ == '__main__':
+    tags = input('Tags: ')
+    save_folder = tags
 
-tag_string_count = {}
-
-while not images == []:
-    print(f'    Page {page}')
-
-    for image in images:
-        file_ext = image['file_ext']
-        
-        if file_ext in ['mp4']:
-            continue
-        
-        filename = image['md5'] if 'md5' in image else datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')
-        
-        tag_string = image['tag_string'].split(' ')
-        
-        for tag in tag_string:
-            tag_string_count[tag] = tag_string_count.get(tag, 0) + 1
-        
-        tag_string = image['tag_string'].replace(' ', ', ')
-        
-        with open(f'{tags}\\{filename}.txt', 'w') as file:
-            file.write(tag_string)
-
-        if not 'variants' in image['media_asset']:
-            continue
-        
-        for variant in image['media_asset']['variants']:
-            if variant['type'] == 'original':
-                image_url = variant['url']
-        
-        download_image(image_url, f'{tags}\\{filename}.{file_ext}')
+    print('Process started.')
     
-    time.sleep(1)
-    
-    page += 1
-    images = get_images(page, tags)
+    page = 1
+    print(f'Page {page}')
+    posts = Danbooru.get_posts(tags, page)
 
-tag_string_count = sorted(tag_string_count.items(), key = lambda item: item[1], reverse = True)
-tag_string = [key for key, value in tag_string_count]
-tag_string = ', '.join(tag_string)
+    while not posts == []:
+        for post in posts:
+            post.download_original(save_folder)
+            post.download_tag_string(save_folder)
+            
+        page += 1
+        print(f'Page {page}')
+        posts = Danbooru.get_posts(tags, page)
 
-with open(f'{tags}/_tags.txt', 'w') as file:
-    file.write(tag_string)
-
-print('Process completed.')
+    print('Process completed.')
