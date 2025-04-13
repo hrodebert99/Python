@@ -2,6 +2,13 @@ import json
 import os
 import requests
 
+class Logger:
+    def print(value):
+        with open('.log', 'a') as file:
+            file.write(f'{value}\n')
+
+            print(value)
+
 class Danbooru:
     def get_posts(include_tags, exclude_tags = [], page = 1):
         url = f'https://danbooru.donmai.us/posts.json?tags={include_tags}&page={page}'
@@ -19,7 +26,7 @@ class Danbooru:
                 if tag in post['tag_string']:
                     break
             else:
-                print(post['tag_string_character'])
+                Logger.print(post['tag_string_character'])
 
                 post = DanbooruPost(post)
                 posts.append(post)
@@ -43,7 +50,7 @@ class DanbooruPost:
         self.file_url = post['file_url']
         
     def download_original(self, save_folder):
-        print(f'Downloading {post.id}')
+        Logger.print(f'Downloading {post.id}')
 
         url = post.file_url
         response = requests.get(url)
@@ -67,10 +74,13 @@ if __name__ == '__main__':
     exclude_tags = exclude_tags.split(' ') if not exclude_tags == '' else []
     save_folder = include_tags
 
-    print('Process started.')
+    Logger.print(f'Include tags: {include_tags}')
+    Logger.print(f'Exclude tags: {exclude_tags}')
+
+    Logger.print('Process started.')
     
     page = 1
-    print(f'Page {page}')
+    Logger.print(f'Page {page}')
     posts = Danbooru.get_posts(include_tags, exclude_tags, page)
 
     while not posts == []:
@@ -79,7 +89,7 @@ if __name__ == '__main__':
             post.download_tag_string(save_folder)
             
         page += 1
-        print(f'Page {page}')
+        Logger.print(f'Page {page}')
         posts = Danbooru.get_posts(include_tags, exclude_tags, page)
 
-    print('Process completed.')
+    Logger.print('Process completed.')
