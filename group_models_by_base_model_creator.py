@@ -20,6 +20,9 @@ class Model:
         
         model_json = Civitai().get_model_by_hash(self.filename, self.hash)
 
+        if model_json == {}:
+            return
+
         self.id = model_json['modelId']
         self.version = model_json['id']
         self.base_model = model_json['baseModel']
@@ -48,8 +51,6 @@ class Civitai:
 
         response = requests.get(f'https://civitai.com/api/v1/model-versions/by-hash/{hash}')
 
-        Logger(f'    {response.status_code}')
-
         if response.status_code == 404:
             Logger('            [404] Model not found.')
         
@@ -62,8 +63,10 @@ class Civitai:
                 Logger(f'                [409] Model duplicate found.')
 
             Logger(f'                [200] Model has been moved to {self.unknown_model_folder}')
-        
-        model_json = json.loads(response.text)
+
+            model_json = {}
+        else:
+            model_json = json.loads(response.text)
 
         return model_json
 
@@ -88,6 +91,14 @@ class ModelOrganizer:
         for extension in self.extensions:
             for model in glob.glob(extension):
                 model = Model(model)
+
+                if (model.id == 'undefined' 
+                    or model.version == 'undefined' 
+                    or model.base_model == 'undefined' 
+                    or model.type == 'undefined' 
+                    or model.creator == 'undefined'):
+                    continue
+
                 models.append(model)
 
         return models
