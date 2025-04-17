@@ -1,3 +1,6 @@
+# TODO
+# When there is a duplication during file transfer, compare SHA256 of both files. If it matches, skip. If not, rename it (maybe adding number behind filename) and transfer again.
+
 import datetime
 import glob
 import hashlib
