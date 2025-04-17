@@ -1,17 +1,17 @@
 import os
 
 include_paths = [
-    '.\\models\\checkpoints',
-    '.\\models\\embeddings',
-    '.\\models\\loras',
-    '.\\models\\vae'
+    '.\\checkpoints',
+    '.\\embeddings',
+    '.\\loras',
+    '.\\vae'
 ]
 
 exclude_files = [
-    '.\\models\\checkpoints\\put_checkpoints_here',
-    '.\\models\\embeddings\\put_embeddings_or_textual_inversion_concepts_here',
-    '.\\models\\loras\\put_loras_here',
-    '.\\models\\vae\\put_vae_here'
+    '.\\checkpoints\\put_checkpoints_here',
+    '.\\embeddings\\put_embeddings_or_textual_inversion_concepts_here',
+    '.\\loras\\put_loras_here',
+    '.\\vae\\put_vae_here'
 ]
 
 for root, folders, files in os.walk('.'):
@@ -23,7 +23,7 @@ for root, folders, files in os.walk('.'):
             continue
         
         try:
-            os.rename(f'{root}\\{file}', f'.\\models\\{file}')
+            os.rename(f'{root}\\{file}', f'.\\{file}')
         except FileExistsError:
             continue
     
