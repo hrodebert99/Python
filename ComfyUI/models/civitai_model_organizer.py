@@ -1,5 +1,6 @@
 # TODO
-# When there is a duplication during file transfer, compare SHA256 of both files. If it matches, skip. If not, rename it (maybe adding number behind filename) and transfer again.
+# - Immediately move the model after getting its info.
+# - When there is a duplication during file transfer, compare SHA256 of both files. If it matches, skip. If not, rename it (maybe adding number behind filename) and transfer again.
 
 import datetime
 import glob
@@ -126,12 +127,12 @@ class Civitai:
     not_found_folder = '_not_found'
 
     def get_model_version(self, filename, hash):
-        Logger(f'File: {filename} | SHA256: {hash}')
+        Logger(f'    File: {filename} | SHA256: {hash}')
 
         response = requests.get(f'https://civitai.com/api/v1/model-versions/by-hash/{hash}')
 
         if response.status_code == 404:
-            Logger('    [404] Model not found.')
+            Logger('        [404] Model not found.')
         
             if not os.path.exists(self.not_found_folder):
                 os.makedirs(self.not_found_folder)
@@ -139,11 +140,16 @@ class Civitai:
             try:
                 os.rename(filename, f'{self.not_found_folder}\\{filename}')
             except FileExistsError:
-                Logger(f'    [409] Model duplicate found.')
+                Logger(f'        [409] Model duplicate found.')
 
-            Logger(f'    [200] Model has been moved to {self.not_found_folder}')
+            Logger(f'        [200] Model has been moved to {self.not_found_folder}')
 
             return {}
+        
+        if not response.status_code == 200:
+            Logger(f'ERROR {response.status_code}')
+
+            raise Exception(f'ERROR {response.status_code}')
         
         model_version = json.loads(response.text)
 
