@@ -1,7 +1,3 @@
-# TODO
-# - Immediately move the model after getting its info.
-# - When there is a duplication during file transfer, compare SHA256 of both files. If it matches, skip. If not, rename it (maybe adding number behind filename) and transfer again.
-
 import datetime
 import glob
 import hashlib
@@ -10,13 +6,11 @@ import os
 import requests
 import time
 
-log_filename = f'{datetime.datetime.now().strftime("%Y%m%d%H%M%S%f")}.log'
-
 class ModelOrganizer:
-    extensions = ['*.safetensors']
-    initial_delay = 3
-    iteration_delay = 1
-    type_paths = {
+    allowed_model_extensions = ['*.safetensors']
+    initial_run_delay = 3
+    iteration_loop_delay = 1
+    model_type_folder_paths = {
         'Checkpoint': 'checkpoints',
         'DoRA': 'loras',
         'LoCon': 'loras',
@@ -27,138 +21,144 @@ class ModelOrganizer:
     
     def __init__(self):
         Logger('Civitai Model Organizer')
+        Logger('Getting all models in the current directory.')
 
         models = self.get_all_models()
-
-        Logger(f'{len(models)} model(s) found.')
-        Logger(f'Starting in {self.initial_delay} seconds. To cancel it, press CTRL+C.')
-
-        time.sleep(self.initial_delay - self.iteration_delay)
-
+        
+        Logger(f'{len(models)} models found.')
+        Logger(f'Starting the model organization in {self.initial_run_delay} seconds. To cancel it, press CTRL+C anytime.')
+        
+        time.sleep(self.initial_run_delay - self.iteration_loop_delay)
+        
         for index, model in enumerate(models):
-            time.sleep(self.iteration_delay)
-
+            time.sleep(self.iteration_loop_delay)
+            
             Logger(f'{index + 1}/{len(models)} {model.filename}')
-            Logger(f'    AIR: {model.id}@{model.version} | SHA256: {model.hash} | Type: {model.type} | Base Model: {model.base_model} | Creator: {model.creator}')
-
-            if not model.type in self.type_paths.keys():
-                Logger(f'    [404] Model type not found.')
+            
+            model.calculate_hash()
+            
+            Logger(f'    SHA256: {model.hash}')
+            
+            model_version = Civitai.get_model_version(model.hash)
+            
+            if model_version == {}:
+                Logger('    [404] Model not found.')
 
                 continue
             
-            new_folder = f'{self.type_paths[model.type]}\\{model.base_model}\\{model.creator}'
+            model.model_version(model_version)
 
-            if not os.path.exists(new_folder):
-                os.makedirs(new_folder)
+            if model.id == None:
+                Logger('    [404] Model not found.')
+
+                continue
+
+            model.model(Civitai.get_model(model.id))
+
+            Logger(f'    AIR: {model.id}@{model.version} | Type: {model.type} | Base Model: {model.base_model} | Creator: {model.creator}')
+
+            if not model.type in self.model_type_folder_paths.keys():
+                Logger('    [404] Model type not found.')
+
+                continue
+
+            new_folder_path = f'{self.model_type_folder_paths[model.type]}\\{model.base_model}\\{model.creator}'
+
+            if not os.path.exists(new_folder_path):
+                os.makedirs(new_folder_path)
             
             try:
-                os.rename(model.filename, f'{new_folder}\\{model.filename}')
+                os.rename(model.filename, f'{new_folder_path}\\{model.filename}')
+
+                Logger(f'    [200] Model has been moved to {new_folder_path}')
             except FileExistsError:
-                Logger(f'    [409] Model duplicate found.')
-        
-        Logger('Process completed.')
+                Logger('    [409] Model duplicate found')
+        Logger('The model organization completed.')
     
     def get_all_models(self):
         models = []
-
-        Logger('Getting all models in the current directory...')
-
-        for extension in self.extensions:
-            for model in glob.glob(extension):
-                model = Model(model)
-
-                if (model.id == None or
-                    model.version == None or
-                    model.base_model == None or
-                    model.type == None or
-                    model.creator == None):
-                    continue
-
+        
+        for extension in self.allowed_model_extensions:
+            for filename in glob.glob(extension):
+                model = Model(filename)
                 models.append(model)
-
+        
         return models
 
-
-
 class Logger:
+    filename = f'{datetime.datetime.now().strftime("%Y%m%d%H%M%S")}.log'
+    
     def __init__(self, value):
         print(value)
-
-        with open(log_filename, 'a', encoding = 'utf-8') as file:
+        
+        with open(self.filename, 'a', encoding = 'utf-8') as file:
             file.write(f'{value}\n')
 
 class Model:
     def __init__(self, filename):
         self.filename = filename
-        self.hash = self.calculate_hash(self.filename)
+        self.hash = None
         self.id = None
         self.version = None
         self.base_model = None
         self.type = None
         self.creator = None
-        
-        model_version = Civitai().get_model_version(self.filename, self.hash)
-
-        if not model_version == {}:
-            self.id = model_version['modelId']
-            self.version = model_version['id']
-            self.base_model = model_version['baseModel']
-            self.type = model_version['model']['type']
-
-            model = Civitai().get_model(self.id)
-
-            if 'creator' in model:
-                self.creator = model['creator']['username']
-            else:
-                self.creator = '_deleted'
-
-    def calculate_hash(self, filename):
+    
+    def calculate_hash(self):
         hasher = hashlib.sha256()
-
-        with open(filename, 'rb') as file:
+        
+        with open(self.filename, 'rb') as file:
             for chunk in iter(lambda: file.read(4096), b''):
                 hasher.update(chunk)
         
         hash = hasher.hexdigest()
+        self.hash = hash
+    
+    def model_version(self, model_version):
+        if model_version == {}:
+            return
+        
+        self.id = model_version['modelId']
+        self.version = model_version['id']
+        self.base_model = model_version['baseModel']
+        self.type = model_version['model']['type']
+    
+    def model(self, model):
+        if not 'creator' in model:
+            self.creator = '_deleted'
 
-        return hash
+            return
+        
+        self.creator = model['creator']['username']
 
 class Civitai:
-    not_found_folder = '_not_found'
-
-    def get_model_version(self, filename, hash):
-        Logger(f'    File: {filename} | SHA256: {hash}')
-
+    @staticmethod
+    def get_model_version(hash):
         response = requests.get(f'https://civitai.com/api/v1/model-versions/by-hash/{hash}')
 
-        if response.status_code == 404:
-            Logger('        [404] Model not found.')
+        if not response.status_code in [200, 404]:
+            Logger(f'ERROR {response.status_code}: {response.text}')
+
+            raise Exception
         
-            if not os.path.exists(self.not_found_folder):
-                os.makedirs(self.not_found_folder)
-            
-            try:
-                os.rename(filename, f'{self.not_found_folder}\\{filename}')
-            except FileExistsError:
-                Logger(f'        [409] Model duplicate found.')
-
-            Logger(f'        [200] Model has been moved to {self.not_found_folder}')
-
+        if response.status_code == 404:
             return {}
         
-        if not response.status_code == 200:
-            Logger(f'ERROR {response.status_code}')
-
-            raise Exception(f'ERROR {response.status_code}')
-        
         model_version = json.loads(response.text)
-
+        
         return model_version
 
-    def get_model(self, id):
+    @staticmethod
+    def get_model(id):
         response = requests.get(f'https://civitai.com/api/v1/models/{id}')
-        model = json.loads(response.text)
+
+        if not response.status_code in [200, 404]:
+            Logger(f'ERROR {response.status_code}: {response.text}')
+
+            raise Exception
         
+        model = json.loads(response.text)
+
         return model
 
 if __name__ == '__main__':
