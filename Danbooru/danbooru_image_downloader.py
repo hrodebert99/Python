@@ -13,27 +13,27 @@ class Logger:
             file.write(f'{value}\n')
 
 class DanbooruImageDownloader:
-    def __init__(self, included_tags, excluded_tags):
-        self.included_tags = included_tags
-        self.excluded_tags = excluded_tags.split(' ') if not excluded_tags == '' else []
-        self.image_download_folder_path = self.included_tags
-        page = 1
+    def __init__(self, search_tags, include_tags, exclude_tags):
+        include_tags = include_tags.split(' ') if not include_tags == '' else []
+        exclude_tags = exclude_tags.split(' ') if not exclude_tags == '' else []
+        image_download_folder_path = search_tags
         allowed_image_types = ['jpg', 'png']
+        page = 1
         Logger(f'Page {page}')
-        posts = Danbooru.get_posts(self.included_tags, self.excluded_tags, page, allowed_image_types)
+        posts = Danbooru.get_posts(search_tags, include_tags, exclude_tags, page, allowed_image_types)
         while not posts == []:
             for post in posts:
-                Logger(f'    {post.id} {post.tag_string_character}')
+                Logger(f'{post.id}\n    {post.tag_string_character}\n    {post.tag_string_copyright}\n    {post.tag_string_general}\n')
                 post.download(self.image_download_folder_path)
             time.sleep(1)
             page += 1
             Logger(f'Page {page}')
-            posts = Danbooru.get_posts(self.included_tags, self.excluded_tags, page, allowed_image_types)
+            posts = Danbooru.get_posts(search_tags, include_tags, exclude_tags, page, allowed_image_types)
 
 class Danbooru:
     @staticmethod
-    def get_posts(included_tags, excluded_tags, page, allowed_image_types):
-        response = requests.get(f'https://danbooru.donmai.us/posts.json?tags={included_tags}&page={page}')
+    def get_posts(search_tags, include_tags, exclude_tags, page, allowed_image_types):
+        response = requests.get(f'https://danbooru.donmai.us/posts.json?tags={search_tags}&page={page}')
         posts_json = json.loads(response.text)
         posts = []
         for post_json in posts_json:
@@ -41,18 +41,26 @@ class Danbooru:
                 continue
             if not 'file_url' in post_json:
                 continue
-            for tag in excluded_tags:
+            for tag in include_tags:
                 if tag in post_json['tag_string']:
+                    continue
+                else:
                     break
             else:
-                post = DanbooruPost(post_json)
-                posts.append(post)
+                for tag in exclude_tags:
+                    if tag in post_json['tag_string']:
+                        break
+                else:
+                    post = DanbooruPost(post_json)
+                    posts.append(post)
         return posts
     
     @staticmethod
     def format_tag_string(tag_string):
         tag_string = tag_string.replace(' ', ', ')
         tag_string = tag_string.replace('_', ' ')
+        tag_string = tag_string.replace('(', '\\(')
+        tag_string = tag_string.replace(')', '\\)')
         return tag_string
 
 class DanbooruPost:
@@ -76,6 +84,7 @@ class DanbooruPost:
             file.write(image)
 
 if __name__ == '__main__':
-    included_tags = input('Included tags: ')
-    excluded_tags = input('Excluded tags: ')
-    DanbooruImageDownloader(included_tags, excluded_tags)
+    search_tags = input('Search tags: ')
+    include_tags = input('Include tags: ')
+    exclude_tags = input('Exclude tags: ')
+    DanbooruImageDownloader(search_tags, include_tags, exclude_tags)
