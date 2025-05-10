@@ -51,6 +51,7 @@ while posts_json != []:
         post['tag_string_general'] = post_json['tag_string_general'].replace(' ', ', ').replace('_', ' ').replace('(', '\\(').replace(')', '\\)')
         post['tag_string_character'] = post_json['tag_string_character'].replace(' ', ', ').replace('_', ' ').replace('(', '\\(').replace(')', '\\)')
         post['tag_string_copyright'] = post_json['tag_string_copyright'].replace(' ', ', ').replace('_', ' ').replace('(', '\\(').replace(')', '\\)')
+        post['tag_string_artist'] = post_json['tag_string_artist'].replace(' ', ', ').replace('_', ' ').replace('(', '\\(').replace(')', '\\)')
         post['file_url'] = post_json['file_url']
 
         if 'md5' in post_json:
@@ -63,13 +64,13 @@ while posts_json != []:
         if not os.path.exists(download_folder_path):
             os.mkdir(download_folder_path)
         
-        if post['md5'] == None:
+        if post['md5'] != None:
             filename = post['md5']
         else:
             filename = post['id']
 
         with open(f'.\\{download_folder_path}\\{filename}.txt', 'w') as file:
-            file.write(f'{post['tag_string_character']}, {post['tag_string_copyright']}, {post['tag_string_general']}')
+            file.write(f'{post['tag_string_character']}, {post['tag_string_copyright']}, {post['tag_string_artist'}, {post['tag_string_general']}')
         
         time.sleep(1)
         response = requests.get(post['file_url'])
