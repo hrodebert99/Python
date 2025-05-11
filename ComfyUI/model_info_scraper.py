@@ -48,6 +48,8 @@ for root, folders, files in os.walk('.\\models'):
             
             continue
 
+        print(f'Processing {filename}...')
+
         hasher = hashlib.sha256()
 
         with open(f'{root}\\{filename}', 'rb') as file:
@@ -62,6 +64,8 @@ for root, folders, files in os.walk('.\\models'):
         row = cursor.fetchone()
 
         if row is not None:
+            print(f'    {filename} already in database.')
+
             continue
 
         response = requests.get(f'https://civitai.com/api/v1/model-versions/by-hash/{model['sha256']}')
@@ -95,11 +99,10 @@ for root, folders, files in os.walk('.\\models'):
         
         cursor.execute("INSERT INTO models (sha256, filename, id, version, base_model, type, creator) VALUES (?, ?, ?, ?, ?, ?, ?)", (model['sha256'], filename, model['id'], model['version'], model['base_model'] if model['base_model'] != None else 'null', model['type'] if model['type'] != None else 'null', model['creator'] if model['creator'] != None else 'null'))
 
-        connection.commit()
-        
-        # cursor.execute("SELECT * FROM models")
-        # rows = cursor.fetchall()
+        print(f'{filename} has been added to the database.')
 
-        # print(rows)
+        connection.commit()
 
 connection.close()
+
+print('Done.')
