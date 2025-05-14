@@ -1,9 +1,11 @@
 import datetime
-import os
 import sqlite3
+import os
 import hashlib
+import time
+import requests
 
-log_filename = f'{datetime.datetime.now().strftime("%Y%m%d%H%M%S")}.log'
+log_filename = f'{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.log'
 
 def log(message):
     with open(log_filename, 'a', encoding='utf-8') as file:
@@ -38,11 +40,6 @@ exclude_files = [
     '.\\models\\text_encoders\\put_text_encoder_files_here',
     '.\\models\\unet\\put_unet_files_here',
     '.\\models\\upscale_models\\put_esrgan_and_other_upscale_models_here',
-    '.\\models\\upscale_models\\4x_NMKD-Superscale-SP_178000_G.pth',
-    '.\\models\\upscale_models\\OmniSR_X2_DIV2K.safetensors',
-    '.\\models\\upscale_models\\OmniSR_X3_DIV2K.safetensors',
-    '.\\models\\upscale_models\\OmniSR_X4_DIV2K.safetensors',
-    '.\\models\\upscale_models\\RealESRGAN_x4.pth',
     '.\\models\\vae\\put_vae_here',
     '.\\models\\vae_approx\\put_taesd_encoder_pth_and_taesd_decoder_pth_here',
     '.\\models\\vae_approx\\taef1_decoder.pth',
@@ -107,4 +104,21 @@ for root, folders, files in os.walk('.\\models'):
 
         log(f'    Added to database.')
 
-connection.close()
+cursor.execute('SELECT * FROM models')
+models_in_database = cursor.fetchall()
+
+for index, model in enumerate(models_in_database):
+    models_in_database[index] = dict(zip([description[0] for description in cursor.description], model))
+
+for model in models_in_database:
+    # time.sleep(1)
+
+    log(f'Processing {model['filename']}...')
+    log(f'    https://civitai.com/api/v1/model-versions/by-hash/{model['hash']}')
+
+    # response = requests.get(f'https://civitai.com/api/v1/model-versions/by-hash/{model['hash']}')
+
+    # TODO: Response code can be other than 200 or 404. If it is, raise an exception.
+
+    # if response.status_code == 404:
+    #     continue
