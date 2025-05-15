@@ -1,3 +1,4 @@
+import datetime
 import time
 import requests
 import os
@@ -9,27 +10,45 @@ exclude_tags = input("Enter exclude tags: ").split()
 download_folder_path = f".\\{search_tags}"
 media_types = ["jpg", "png"]
 
+if not os.path.exists(download_folder_path):
+    os.makedirs(download_folder_path)
+
+log_filename = f'.\\{search_tags}\\{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.log'
+
+def log(message, console_output = True):
+    with open(log_filename, 'a', encoding='utf-8') as file:
+        file.write(f'{message} \n')
+
+    if console_output:
+        print(message)
+
+log(f"Enter search tags: {search_tags}", False)
+log(f"Enter include tags: {include_tags if include_tags != [] else ''}", False)
+log(f"Enter exclude tags: {exclude_tags if exclude_tags != [] else ''}", False)
+
+page_count = 0
+
 page = 1
 
 time.sleep(1)
 response = requests.get(f"https://danbooru.donmai.us/posts.json?tags={search_tags}&page={page}")
 posts = response.json()
 
-page_count = 1
-print(f"Page count: {page_count}")
-
 while posts != []:
     page_count += 1
+    log(f"Page count: {page_count}")
+
+    for post in posts:
+        log({ "tag_string_character": post["tag_string_character"], "tag_string_copyright": post["tag_string_copyright"], "tag_string_meta": post["tag_string_meta"], "tag_string_general": post["tag_string_general"] })
+
+    page += 1
 
     time.sleep(1)
     response = requests.get(f"https://danbooru.donmai.us/posts.json?tags={search_tags}&page={page}")
     posts = response.json()
 
-    page += 1
-    print(f"Page count: {page_count}")
-
 page = 1
-print(f"Page {page}/{page_count}")
+log(f"Page {page}/{page_count}")
 
 response = requests.get(f"https://danbooru.donmai.us/posts.json?tags={search_tags}&page={page}")
 posts = response.json()
@@ -75,9 +94,6 @@ while posts != []:
             "file_url": post["file_url"],
             "md5": post["md5"] if "md5" in post else None
         }
-
-        if not os.path.exists(download_folder_path):
-            os.makedirs(download_folder_path)
         
         if post["md5"] == None:
             file_name = post["id"]
@@ -96,7 +112,7 @@ while posts != []:
                     file.write(chunk)
     
     page += 1
-    print(f"Page {page}/{page_count}")
+    log(f"Page {page}/{page_count}")
 
     time.sleep(1)
     response = requests.get(f"https://danbooru.donmai.us/posts.json?tags={search_tags}&page={page}")
