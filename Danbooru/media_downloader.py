@@ -54,11 +54,19 @@ response = requests.get(f"https://danbooru.donmai.us/posts.json?tags={search_tag
 posts = response.json()
 
 while posts != []:
+    log(f"Page {page}/{page_count}")
+    
     for post in posts:
+        log(f"Post ID: {post['id'] if 'id' in post else ''}, Post MD5: {post['md5'] if 'md5' in post else ''}", False)
+
         if post["file_ext"] not in media_types:
+            log(f"    Is not a valid media type", False)
+
             continue
 
         if "file_url" not in post:
+            log(f"    No file_url", False)
+
             continue
 
         is_exclude_tag_found = False
@@ -70,6 +78,8 @@ while posts != []:
                 break
 
         if is_exclude_tag_found:
+            log(f"    Exclude tag found", False)
+
             continue
 
         is_include_tag_found = True
@@ -81,6 +91,8 @@ while posts != []:
                 break
 
         if not is_include_tag_found:
+            log(f"    Include tag not found", False)
+
             continue
 
         post = {
@@ -102,6 +114,8 @@ while posts != []:
 
         with open(f"{download_folder_path}\\{file_name}.txt", "w") as file:
             file.write(f"{post['tag_string_character']}, {post['tag_string_copyright']}, {post['tag_string_meta']}, {post['tag_string_general']}")
+
+            log(f"    Downloaded {file_name}.txt", False)
         
         time.sleep(1)
         response = requests.get(post["file_url"], stream = True)
@@ -110,10 +124,13 @@ while posts != []:
             with open(f"{download_folder_path}\\{file_name}.{post['file_ext']}", "wb") as file:
                 for chunk in response.iter_content(1024):
                     file.write(chunk)
+                
+            log(f"    Downloaded {file_name}.{post['file_ext']}", False)
     
     page += 1
-    log(f"Page {page}/{page_count}")
 
     time.sleep(1)
     response = requests.get(f"https://danbooru.donmai.us/posts.json?tags={search_tags}&page={page}")
     posts = response.json()
+
+log("Download complete")
