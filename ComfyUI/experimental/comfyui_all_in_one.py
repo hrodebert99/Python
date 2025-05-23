@@ -73,7 +73,7 @@ exclude_files = [
 ]
 
 def log(message):
-    message = f'{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {message}'
+    message = f'[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}'
 
     with open(log_filename, 'a', encoding = 'utf-8') as file:
         file.write(f'{message} \n')
@@ -81,7 +81,7 @@ def log(message):
     print(message)
 
 def connect_to_database():
-    log('Connecting to SQLite database...')    
+    log('Connecting to database...')
 
     connection = sqlite3.connect('database.db')
     cursor = connection.cursor()
@@ -90,11 +90,11 @@ def connect_to_database():
 
 def close_database(connection):
     log('Closing database connection...')
-    
+
     connection.close()
 
 def create_tables(connection, cursor):
-    log('Creating tables')
+    log('Creating tables...')
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS models (
@@ -119,6 +119,7 @@ def create_tables(connection, cursor):
         )
     ''')
 
+    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS creators (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -126,6 +127,7 @@ def create_tables(connection, cursor):
         )
     ''')
 
+    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS civitai_models (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -141,14 +143,23 @@ def create_tables(connection, cursor):
     connection.commit()
 
 def insert_default_data(connection, cursor):
-    cursor.execute('''
-        INSERT INTO creators (name)
-        VALUES  ('None')
-    ''')
+    log('Inserting default data...')
 
+    cursor.execute('''
+        SELECT 1 FROM creators WHERE name = ?
+    ''', ('None',))
+    row = cursor.fetchone()
+
+    if row != None:
+        return
+    
+    cursor.execute('INSERT INTO creators (name) VALUES  (?)', ('None',))
+    
     connection.commit()
 
 def calculate_hash(file_path):
+    log(f'Calculating hash for {file_path}...')
+
     hash = hashlib.sha256()
 
     with open(file_path, 'rb') as file:
@@ -158,11 +169,10 @@ def calculate_hash(file_path):
     return hash.hexdigest()
 
 def insert_model_to_database(connection, cursor, file_path, hash):
-    cursor.execute(f'''
-        INSERT INTO models (file_path, hash)
-        VALUES  ('{file_path}', '{hash}')
-    ''')
+    log(f'Inserting {file_path} into database...')
 
+    cursor.execute('INSERT INTO models (file_path, hash) VALUES  (?, ?)',(file_path, hash))
+    
     connection.commit()
 
 def process_models(connection, cursor, models_folder_path, exclude_files):
@@ -171,16 +181,25 @@ def process_models(connection, cursor, models_folder_path, exclude_files):
             file_path = f'{root}\\{file}'
 
             if file_path in exclude_files:
+                log(f'{file_path} is in exclusion list. Skipping...')
+
+                continue
+
+            cursor.execute('SELECT * FROM models WHERE file_path = ?', (file_path,))
+            row = cursor.fetchone()
+            
+            if row != None:
+                log(f'{file_path} already exist. Skipping...')
+
                 continue
 
             hash = calculate_hash(file_path)
-
+            
             insert_model_to_database(connection, cursor, file_path, hash)
 
-            log(f'{file_path} has been added to database.')
-
-connection, cursor = connect_to_database()
-create_tables(connection, cursor)
-insert_default_data(connection, cursor)
-process_models(connection, cursor, models_folder_path, exclude_files)
-close_database(connection)
+if __name__ == '__main__':
+    connection, cursor = connect_to_database()
+    create_tables(connection, cursor)
+    insert_default_data(connection, cursor)
+    process_models(connection, cursor, models_folder_path, exclude_files)
+    close_database(connection)
