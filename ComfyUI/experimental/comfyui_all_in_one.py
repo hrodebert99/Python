@@ -2,6 +2,7 @@ import datetime
 import sqlite3
 import os
 import hashlib
+import glob
 
 log_filename = f'{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.log'
 
@@ -70,6 +71,10 @@ exclude_files = [
 
     '.\\models\\stable_diffusion_model_organizer.py',
     '.\\models\\model_directory_flattener.py'
+]
+
+model_extensions = [
+    '*.safetensors'
 ]
 
 def log(message):
@@ -175,7 +180,7 @@ def insert_model_to_database(connection, cursor, file_path, hash):
     
     connection.commit()
 
-def process_models(connection, cursor, models_folder_path, exclude_files):
+def process_models(connection, cursor, models_folder_path, exclude_files, model_extensions):
     for root, _, files in os.walk(models_folder_path):
         for file in files:
             file_path = f'{root}\\{file}'
@@ -197,9 +202,13 @@ def process_models(connection, cursor, models_folder_path, exclude_files):
             
             insert_model_to_database(connection, cursor, file_path, hash)
 
+    for extension in model_extensions:
+        for model in glob.glob(extension):
+            log(model)
+
 if __name__ == '__main__':
     connection, cursor = connect_to_database()
     create_tables(connection, cursor)
     insert_default_data(connection, cursor)
-    process_models(connection, cursor, models_folder_path, exclude_files)
+    process_models(connection, cursor, models_folder_path, exclude_files, model_extensions)
     close_database(connection)
